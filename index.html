@@ -143,6 +143,9 @@ body.teacher .codeBadge b{font-size:44px}
 #keypad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 #keypad button{border:none;border-radius:16px;background:#fff7ec;font-size:30px;padding:10px 0;box-shadow:0 3px 0 rgba(0,0,0,.1);cursor:pointer}
 #keypad button:active{transform:translateY(2px)}
+.feelChips{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.feelChips button{border:none;border-radius:999px;padding:6px 11px;font-size:16px;background:#f6f0e8;cursor:pointer;box-shadow:0 2px 0 rgba(0,0,0,.08)}
+.feelChips button.on{background:var(--yellow)}
 #toast{position:fixed;left:50%;bottom:30%;transform:translateX(-50%);background:rgba(74,59,82,.9);color:#fff;padding:12px 22px;border-radius:999px;font-size:19px;display:none;z-index:60}
 </style>
 </head>
@@ -193,7 +196,8 @@ body.teacher .codeBadge b{font-size:44px}
       <div class="panel">
         <div class="field">안녕! 나는 <input type="text" id="iName" maxlength="12" placeholder="캐릭터 이름"> 야!</div>
         <div class="field">한마디 <input type="text" id="iWords" maxlength="30" value="만나서 반가워~"></div>
-        <div class="field">세 번째 기분 <input type="text" id="iLabel3" maxlength="6" value="화날"> 때</div>
+        <div class="field">세 번째 기분 ( <input type="text" id="iLabel3" maxlength="6" value="" placeholder="아래에서 골라요"> ) 때</div>
+        <div class="feelChips" id="feelChips"></div>
       </div>
     </div>
   </div>
@@ -317,7 +321,7 @@ const SLOTS=[
   {id:'main', label:'내 캐릭터', emoji:'🌟', color:'#ff8fb1'},
   {id:'happy',label:'행복할 때', emoji:'😊', color:'#ffbf3c'},
   {id:'sad',  label:'속상할 때', emoji:'😢', color:'#5fa8ff'},
-  {id:'third',label:'화날 때',   emoji:'😠', color:'#ff6b6b'},
+  {id:'third',label:'(  ) 때',   emoji:'💭', color:'#ff6b6b'},
 ];
 const S={img:null,active:'main',slot:{},tool:-1};
 SLOTS.forEach(s=>S.slot[s.id]={rect:null,thr:62,manual:null});
@@ -373,20 +377,26 @@ function openEditor(){show('scrEdit');buildSlotButtons();selectSlot('main');requ
 $('bBack1').onclick=()=>show('scrStart');
 window.addEventListener('resize',()=>{if($('scrEdit').classList.contains('show'))drawPhoto();if($('scrStage').classList.contains('show'))resizeStage()});
 
-function slotLabel(s){return s.id==='third'?(($('iLabel3').value.trim()||'화날')+' 때'):s.label}
+function slotLabel(s){if(s.id!=='third')return s.label;const v=$('iLabel3').value.trim();return v?`${thirdStyle(v)[1]} ${v} 때`.slice(0):'(  ) 때'}
+const FEELS=['화날','신날','놀랄','졸릴','무서울','부끄러울','배고플','심심할','설렐','아플'];
+function buildFeelChips(){const box=$('feelChips');box.innerHTML='';const cur=$('iLabel3').value.trim();
+  FEELS.forEach(f=>{const b=document.createElement('button');b.textContent=`${thirdStyle(f)[1]} ${f}`;b.className=cur===f?'on':'';
+    b.onclick=()=>{$('iLabel3').value=f;buildFeelChips();buildSlotButtons();if(S.active==='third')selectSlot('third');tone(700,900,0.08,'triangle',0.08)};box.appendChild(b)})}
+buildFeelChips();
 function buildSlotButtons(){
   const box=$('slots');box.innerHTML='';
   SLOTS.forEach(s=>{
     const b=document.createElement('button');b.className='slot'+(S.active===s.id?' on':'');b.style.setProperty('--c',s.color);
-    b.innerHTML=`<span class="dot"></span>${s.emoji} ${slotLabel(s)}<span class="ok">${S.slot[s.id].cut?'✅':(s.id==='main'?'꼭!':'')}</span>`;
+    b.innerHTML=`<span class="dot"></span>${s.id==='third'?'':s.emoji+' '}${slotLabel(s)}<span class="ok">${S.slot[s.id].cut?'✅':(s.id==='main'?'꼭!':'')}</span>`;
     b.onclick=()=>selectSlot(s.id);box.appendChild(b);
   });
 }
-$('iLabel3').oninput=buildSlotButtons;
+$('iLabel3').oninput=()=>{buildSlotButtons();buildFeelChips()};
 function selectSlot(id){
   S.active=id;buildSlotButtons();
   const s=SLOTS.find(x=>x.id===id);
-  $('prevTitle').textContent=`${s.emoji} ${slotLabel(s)} — 오린 모습`;
+  $('prevTitle').textContent=`${s.id==='third'?'':s.emoji+' '}${slotLabel(s)} — 오린 모습`;
+  if(id==='third'&&!$('iLabel3').value.trim())toast('💭 오른쪽 아래에서 세 번째 기분을 먼저 골라 주세요!',2500);
   $('photoHint').textContent=id==='main'?'👆 큰 그림의 캐릭터 주위를 손가락으로 네모 그려요':`👆 아래 칸의 「${slotLabel(s)}」 그림을 네모로 그려요 (없으면 건너뛰어도 돼요)`;
   $('thr').value=S.slot[id].thr;
   drawPreview();drawPhoto();
@@ -407,7 +417,7 @@ function drawPhoto(){
     const x=photoView.ox+rc.x*k,y=photoView.oy+rc.y*k,w=rc.w*k,h=rc.h*k;
     ctx.lineWidth=S.active===s.id?4:2.5;ctx.strokeStyle=s.color;ctx.setLineDash(S.active===s.id?[]:[8,6]);
     ctx.fillStyle=s.color+'22';ctx.beginPath();ctx.roundRect?ctx.roundRect(x,y,w,h,10):ctx.rect(x,y,w,h);ctx.fill();ctx.stroke();ctx.setLineDash([]);
-    ctx.font='18px Jua, sans-serif';const t=s.emoji+' '+slotLabel(s);const tw=ctx.measureText(t).width;
+    ctx.font='18px Jua, sans-serif';const t=(s.id==='third'?'':s.emoji+' ')+slotLabel(s);const tw=ctx.measureText(t).width;
     ctx.fillStyle=s.color;ctx.beginPath();ctx.roundRect?ctx.roundRect(x,y-26,tw+16,24,12):ctx.rect(x,y-26,tw+16,24);ctx.fill();
     ctx.fillStyle='#fff';ctx.fillText(t,x+8,y-8);
   });
@@ -548,7 +558,7 @@ $('tReset').onclick=()=>{const sl=S.slot[S.active];if(!sl.rect)return;sl.manual=
 $('bMake').onclick=()=>{
   const cuts={};SLOTS.forEach(s=>{if(S.slot[s.id].cut)cuts[s.id]=S.slot[s.id].cut});
   if(!cuts.main){toast('🌟 「내 캐릭터」를 먼저 네모로 골라 주세요!');selectSlot('main');return}
-  const info={name:$('iName').value.trim(),words:$('iWords').value.trim()||'만나서 반가워~',label3:$('iLabel3').value.trim()||'화날'};
+  const info={name:$('iName').value.trim(),words:$('iWords').value.trim()||'만나서 반가워~',label3:$('iLabel3').value.trim()};
   saveLast(cuts,info);buildPaperBg();openStage(cuts,info);
 };
 
@@ -803,13 +813,26 @@ function limbUniforms(P,pose){
 const G={cuts:null,info:null,poses:{},mood:'main',cur:'main',act:null,cam:{yaw:0,pitch:0.12,dist:1,lastTouch:0},
   sound:true,auto:false,bg:0,nextSpawn:0,bubbleUntil:0,parts:[],rec:null,model:null,VP:null,eye:[0,0,5]};
 const MOODS=[{id:'main',emoji:'🙂',label:'기본'},{id:'happy',emoji:'😊',label:'행복'},{id:'sad',emoji:'😢',label:'속상'},{id:'third',emoji:'😠',label:'화남'}];
-function thirdStyle(lbl){if(/놀/.test(lbl))return['surprise','😲'];if(/졸|잠|피곤/.test(lbl))return['sleepy','😪'];if(/신|기쁘|좋/.test(lbl))return['happy','🤩'];if(/무서|겁/.test(lbl))return['scared','😱'];return['angry','😠']}
+function thirdStyle(lbl){lbl=lbl||'';
+  if(!lbl.trim())return['other','🌟'];
+  if(/화|짜증|분|열받/.test(lbl))return['angry','😠'];
+  if(/놀/.test(lbl))return['surprise','😲'];
+  if(/졸|잠|피곤/.test(lbl))return['sleepy','😪'];
+  if(/무서|겁|두려/.test(lbl))return['scared','😱'];
+  if(/부끄|창피|수줍/.test(lbl))return['shy','😳'];
+  if(/배고|배가 고|먹/.test(lbl))return['hungry','🤤'];
+  if(/심심|지루/.test(lbl))return['bored','😑'];
+  if(/설레|사랑|좋아/.test(lbl))return['love','🥰'];
+  if(/아플|아파|아픈/.test(lbl))return['sick','🤒'];
+  if(/슬프|슬플|속상|울/.test(lbl))return['sad','😢'];
+  if(/신|기쁘|기쁠|행복|즐거/.test(lbl))return['happy','🤩'];
+  return['other','🌟']}
 
 function openStage(cuts,info){
   show('scrStage');if(!initGL())return;
   G.cuts=cuts;G.info=info;
   $('nameTag').textContent=info.name?info.name:'나의 친구';
-  const [st,em]=thirdStyle(info.label3);MOODS[3].emoji=em;MOODS[3].label=info.label3;G.thirdStyle=st;
+  const [st,em]=thirdStyle(info.label3);MOODS[3].emoji=em;MOODS[3].label=info.label3||'세 번째';G.thirdStyle=st;
   const ml=$('moodLine');ml.innerHTML='<span class="lab">기분</span>';
   MOODS.forEach(m=>{const b=document.createElement('button');b.className='act mood'+(m.id==='main'?' on':'');b.dataset.m=m.id;b.innerHTML=`<b>${m.emoji}</b>${m.label}`;b.onclick=()=>setMood(m.id);ml.appendChild(b)});
   G.mood='main';G.cur='main';G.act=null;
@@ -1087,6 +1110,12 @@ function computePose(st,t){
   else if(sty==='angry'){P.x+=0.022*Math.sin(t*47);P.rz+=0.03*Math.sin(t*33);const p=Math.abs(Math.sin(t*6));P.sy*=1+0.04*p;P.sx*=1+0.03*p;P.tint=[1,0.25,0.2];P.ta=0.08+0.1*Math.pow(Math.sin(t*5),2);const st7=Math.sin(t*7);LIMB([0.6+0.25*Math.sin(t*26),0.6+0.25*Math.sin(t*26+1.6)],[0.08,0.08],[0.12*Math.max(0,st7),0.12*Math.max(0,-st7)],0.12*Math.sin(t*40))}
   else if(sty==='surprise'){const b=Math.max(0,Math.sin(t*3.2));P.y+=0.12*Math.pow(b,8);P.sy*=1.05;P.x+=0.01*Math.sin(t*40);LIMB([1.35+0.08*Math.sin(t*20),1.35+0.08*Math.sin(t*20+1)],[0.18,0.18],null,0.45)}
   else if(sty==='sleepy'){P.rz+=0.09*Math.sin(t*0.7);P.bend+=0.15*Math.sin(t*0.7);P.rx+=0.08;P.sy*=1+0.03*Math.sin(t*1.4);LIMB([-0.18+0.06*Math.sin(t*0.7),-0.18-0.06*Math.sin(t*0.7)],[0,0],null,0.3*Math.sin(t*0.7))}
+  else if(sty==='shy'){P.sy*=0.95;P.sx*=1.02;P.rz+=0.06*Math.sin(t*1.6);P.ry+=0.25*Math.sin(t*0.8);P.bendZ+=0.1;P.tint=[1,0.45,0.6];P.ta=0.1+0.05*Math.sin(t*3);LIMB([-0.55+0.05*Math.sin(t*3),-0.55+0.05*Math.sin(t*3+1)],[-0.08,-0.08],null,0.2*Math.sin(t*1.6))}
+  else if(sty==='hungry'){P.sy*=0.96+0.02*Math.sin(t*1.2);P.rz+=0.05*Math.sin(t*1.2);P.bendZ+=0.12;P.y+=0.03*Math.max(0,Math.sin(t*2.4));LIMB([-0.45+0.18*Math.sin(t*4),-0.45+0.18*Math.sin(t*4+Math.PI)],[0,0],null,-0.3)}
+  else if(sty==='bored'){P.rz+=0.1*Math.sin(t*0.6);P.bend+=0.18*Math.sin(t*0.6);P.sy*=0.97;LIMB([-0.1+0.2*Math.sin(t*0.6),-0.1-0.2*Math.sin(t*0.6)],[0.05*Math.sin(t*0.6),-0.05*Math.sin(t*0.6)],null,0.4*Math.sin(t*0.6))}
+  else if(sty==='love'){const per=0.9,ph=(t%per)/per,hop=Math.sin(ph*Math.PI);P.y+=0.12*hop;P.rz+=0.1*Math.sin(t*2.2);P.ry+=0.2*Math.sin(t*1.1);P.tint=[1,0.55,0.7];P.ta=0.06;LIMB([0.5+0.2*Math.sin(t*4.4),0.5+0.2*Math.sin(t*4.4+1)],[0.1*hop,0.1*hop],null,0.3*Math.sin(t*4.4))}
+  else if(sty==='sick'){P.x+=0.02*Math.sin(t*2);P.rz+=0.08*Math.sin(t*1.5);P.sy*=0.94;P.bendZ+=0.15;P.tint=[0.55,0.85,0.5];P.ta=0.12;LIMB([-0.35,-0.35],[-0.05,-0.05],null,0.35)}
+  else if(sty==='other'){const per=1.1,ph=(t%per)/per,hop=Math.sin(ph*Math.PI);P.y+=0.08*hop;P.rz+=0.06*Math.sin(t*2);LIMB([0.4+0.25*Math.sin(t*3),0.4+0.25*Math.sin(t*3+Math.PI)],[0.06*hop,0.06*hop],null,0.25*Math.sin(t*3))}
   else if(sty==='scared'){P.x+=0.015*Math.sin(t*55);P.sy*=0.94;P.sx*=0.97;P.tint=[0.6,0.6,1];P.ta=0.08;LIMB([0.95+0.1*Math.sin(t*50),0.95+0.1*Math.sin(t*50+1)],[-0.1,-0.1],null,0.2*Math.sin(t*30))}
   const A=st.act;
   if(A){const p=(t-A.t)/A.d;
@@ -1173,6 +1202,12 @@ function idleFx(t){
   else if(st==='sleepy'){spawn('💤',{vx:30,vy:-35,life:2.2});G.nextSpawn=t+1.2}
   else if(st==='surprise'){spawn(['❗','❓'][Math.random()*2|0],{vy:-60,life:1});G.nextSpawn=t+0.9}
   else if(st==='scared'){spawn('💦',{at:'side',vy:-20,life:1});G.nextSpawn=t+0.8}
+  else if(st==='shy'){spawn(['💗','🌸'][Math.random()*2|0],{at:'side',vy:-25,life:1.4});G.nextSpawn=t+0.8}
+  else if(st==='hungry'){spawn(['🍙','🍰','🍕','🍗','💭'][Math.random()*5|0],{vy:-35,life:1.6});G.nextSpawn=t+0.9}
+  else if(st==='bored'){spawn(['💭','…','🌀'][Math.random()*3|0],{vx:20,vy:-25,life:2});G.nextSpawn=t+1.3}
+  else if(st==='love'){spawn(['💓','💕','💘'][Math.random()*3|0],{spread:1.2,vy:-45});G.nextSpawn=t+0.5}
+  else if(st==='sick'){spawn(['🤧','💦','🌡️'][Math.random()*3|0],{at:'side',vy:-20,life:1.3});G.nextSpawn=t+1}
+  else if(st==='other'){spawn(['✨','🌟','💫'][Math.random()*3|0],{spread:1.2});G.nextSpawn=t+0.7}
   else G.nextSpawn=t+1;
 }
 function say(text,sec=3){const b=$('bubble');b.textContent=text;b.classList.add('show');G.bubbleUntil=now()+sec}
@@ -1499,7 +1534,7 @@ function onRoomMsg(topic,payload){
   }
 }
 function makeChar(info){
-  const [st]=thirdStyle(info.label3||'화날');
+  const [st]=thirdStyle(info.label3||'');
   const ch={id:info.id,name:info.name||'친구',words:info.words||'안녕!',label3:info.label3,thirdStyle:st,poses:info.poses||['main'],cuts:{},gp:{},
     mood:'main',cur:'main',act:null,x:0,z:2,tx:0,tz:2,face:0,walk:0,q:-1,nextSpawn:0,bubbleUntil:0};
   ch.tag=document.createElement('div');ch.tag.className='rtag';ch.tag.innerHTML=`<span></span>`;ch.tag.firstChild.textContent=ch.name;
@@ -1543,8 +1578,8 @@ function myMood(m){const me=ROOM.me;if(!me)return;
 function roomSay(ch,text,sec=2.8){ch.bub.textContent=text;ch.bub.classList.add('show');ch.bubbleUntil=now()+sec}
 function buildRoomMoodButtons(){
   const box=$('rMoods');box.innerHTML='';
-  const [,em]=thirdStyle(G.info.label3||'화날');
-  [{id:'main',e:'🙂',l:'기본'},{id:'happy',e:'😊',l:'행복'},{id:'sad',e:'😢',l:'속상'},{id:'third',e:em,l:G.info.label3||'화날'}].forEach(m=>{
+  const [,em]=thirdStyle(G.info.label3||'');
+  [{id:'main',e:'🙂',l:'기본'},{id:'happy',e:'😊',l:'행복'},{id:'sad',e:'😢',l:'속상'},{id:'third',e:em,l:G.info.label3||'세 번째'}].forEach(m=>{
     const b=document.createElement('button');b.className='act rmood'+(m.id==='main'?' on':'');b.dataset.m=m.id;b.innerHTML=`<b>${m.e}</b>${m.l}`;b.onclick=()=>myMood(m.id);box.appendChild(b)});
 }
 document.querySelectorAll('[data-ra]').forEach(b=>b.onclick=()=>myAct(b.dataset.ra));
@@ -1700,6 +1735,12 @@ function rIdleFx(ch,t){
   else if(st==='sleepy'){rSpawn(ch,'💤',{vx:24,vy:-28,life:2});ch.nextSpawn=t+1.3*slow}
   else if(st==='surprise'){rSpawn(ch,'❗',{vy:-50,life:1});ch.nextSpawn=t+1*slow}
   else if(st==='scared'){rSpawn(ch,'💦',{at:'side',vy:-16,life:1});ch.nextSpawn=t+0.9*slow}
+  else if(st==='shy'){rSpawn(ch,'💗',{at:'side',vy:-20,life:1.2});ch.nextSpawn=t+0.9*slow}
+  else if(st==='hungry'){rSpawn(ch,['🍙','🍰','🍕','🍗'][Math.random()*4|0],{vy:-28,life:1.4});ch.nextSpawn=t+1*slow}
+  else if(st==='bored'){rSpawn(ch,'💭',{vx:18,vy:-20,life:1.8});ch.nextSpawn=t+1.4*slow}
+  else if(st==='love'){rSpawn(ch,['💓','💕'][Math.random()*2|0],{spread:1.2,vy:-35});ch.nextSpawn=t+0.6*slow}
+  else if(st==='sick'){rSpawn(ch,'🤧',{at:'side',vy:-16,life:1.2});ch.nextSpawn=t+1.1*slow}
+  else if(st==='other'){rSpawn(ch,'✨',{spread:1.2});ch.nextSpawn=t+0.8*slow}
   else ch.nextSpawn=t+1;
 }
 // 교실 화면 드래그 = 둘러보기, 두 손가락/휠 = 확대
